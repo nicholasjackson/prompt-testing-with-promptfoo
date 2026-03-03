@@ -1,0 +1,201 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+description: 'TORCS racing assistant for kids - Granite models via Ollama'
+
+# Ollama must be running locally: https://ollama.com
+# Pull the models first:
+#   ollama pull granite3.2
+#   ollama pull granite3.1-dense
+#   ollama pull granite3.1-moe
+
+prompts:
+  - file://prompt-with-context.yaml
+  - file://prompt-without-context.yaml
+
+providers:
+  # Requires OLLAMA_BASE_URL=http://<host>:<port> to be set in the environment
+  # if not set default http://localhost:11434 is used
+  - ollama:chat:granite3.1-moe:1b
+  - ollama:chat:granite4:350m
+  - ollama:chat:granite4:1b
+  - ollama:chat:granite4:1b-h
+  - ollama:chat:granite4:32b-a9b-h
+
+tests:
+  - description: Child asks what a chicane is
+    vars:
+      question: What is a chicane?
+    assert:
+      - type: icontains-any
+        value:
+          - corner
+          - corners
+          - winding
+          - bend
+          - turns
+          - curve
+        metric: explains-chicane
+      - type: icontains-any
+        value:
+          - Target Speed
+          - Steering Gain
+          - Centering Gain
+          - Traction Control
+        metric: mentions-named-slider
+      - type: icontains-any
+        value:
+          - increase
+          - decrease
+          - reduce
+          - lower
+          - higher
+          - adjust
+          - try
+        metric: gives-directional-advice
+
+  - description: Child is too slow but scared of crashing
+    vars:
+      question: I am too slow, but I don't want to crash
+    assert:
+      - type: icontains
+        value: Target Speed
+        metric: mentions-target-speed
+      - type: icontains-any
+        value:
+          - Traction Control
+          - Steering Gain
+          - Centering Gain
+        metric: mentions-safety-slider
+      - type: icontains-any
+        value:
+          - increase
+          - little
+          - slowly
+          - bit
+        metric: advises-gradual-increase
+
+  - description: Child asks why their car keeps crashing
+    vars:
+      question: My car keeps crashing into the walls! What am I doing wrong?
+    assert:
+      - type: icontains-any
+        value:
+          - Steering Gain
+          - Centering Gain
+          - Target Speed
+          - Traction Control
+        metric: mentions-named-slider
+      - type: icontains-any
+        value:
+          - reduce
+          - lower
+          - decrease
+          - slow
+        metric: advises-reducing-something
+
+  - description: Child wants their car to go faster
+    vars:
+      question: How do I make my car go faster?
+    assert:
+      - type: icontains
+        value: Target Speed
+        metric: mentions-target-speed
+      - type: icontains-any
+        value:
+          - increase
+          - higher
+          - up
+        metric: advises-increase
+      - type: icontains-any
+        value:
+          - gear
+          - Traction Control
+          - Steering Gain
+          - Centering Gain
+        metric: mentions-second-slider-or-gear
+
+  - description: Child asks about spinning out
+    vars:
+      question: My car keeps spinning out on the corners, what should I do?
+    assert:
+      - type: icontains-any
+        value:
+          - Traction Control
+          - Steering Gain
+          - Target Speed
+        metric: mentions-named-slider
+      - type: icontains-any
+        value:
+          - reduce
+          - lower
+          - decrease
+          - increase
+          - adjust
+        metric: gives-directional-advice
+
+  - description: Child asks what traction control does
+    vars:
+      question: What does the Traction Control slider do?
+    assert:
+      - type: icontains
+        value: Traction Control
+        metric: mentions-traction-control
+      - type: icontains-any
+        value:
+          - spin
+          - slip
+          - grip
+          - skid
+          - wheel
+          - safe
+        metric: explains-the-concept
+      - type: icontains-any
+        value:
+          - increase
+          - decrease
+          - higher
+          - lower
+          - adjust
+          - reduce
+        metric: gives-directional-advice
+
+  - description: Child asks an off-topic question (guardrail test)
+    vars:
+      question: What is the capital of France?
+    assert:
+      - type: not-icontains
+        value: Paris
+        metric: does-not-answer-off-topic
+      - type: icontains-any
+        value:
+          - racing
+          - TORCS
+          - car
+          - race
+        metric: redirects-to-racing
+
+  - description: Child asks about gear settings
+    vars:
+      question: When should I change gears?
+    assert:
+      - type: icontains-any
+        value:
+          - gear
+          - Gear
+        metric: talks-about-gears
+      - type: icontains-any
+        value:
+          - speed
+          - fast
+          - slow
+          - Target Speed
+        metric: links-gears-to-speed
+      - type: icontains-any
+        value:
+          - increase
+          - decrease
+          - adjust
+          - higher
+          - lower
+          - change
+          - try
+        metric: gives-directional-advice
