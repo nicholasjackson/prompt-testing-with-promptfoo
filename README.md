@@ -1,5 +1,38 @@
 # Racing Assistant test
 
+## Installation
+
+Install Promptfoo globally using npm:
+```
+npm install -g promptfoo
+```
+
+Ensure the Ollama HOST is set correctly in your environment variables:
+
+```
+export OLLAMA_HOST=http://localhost:11434
+```
+
+Install the models locally:
+
+```
+ollama pull granite3.1-moe:1b
+ollama pull granite4:350m
+ollama pull granite4:1b
+ollama pull granite4:1b-h
+ollama pull granite4:32b-a9b-h
+```
+
+## Running the tests
+To run the tests locally with Ollama, use the following command:
+
+```
+promptfoo eval
+```
+
+Note the granite4:32b-a9b-h model is a very large model that requires 24GB of GPU memory to run.
+This model is used as a reference for the best possible performance, but it may not be feasible to run on all hardware configurations.
+
 ## Testing methodology
 Promptfoo was used to execute a series of tests to assess the performance of a two prompts across a number of models all running with Ollama using a Nvidia 4090 GPU with 24GB of RAM.
 
@@ -64,6 +97,8 @@ Once the metrics have been analysed you can then determine words or frases that 
 ## Quick analysis,
 As expected the large `granite4:32b-a9b-h` model performs the best, and context appears to make little difference, if anything, performance with context is slightly worse indicating that the context contains lower quality of information than which was used in its training. This is a useful insight as it can be used to benchmark context. If the quality of output for `granite4:32b-a9b-h` with context equals or betters the response without context then this proves that context is not having a negative impact and should also improve the quality of the output from smaller models where context has a bigger impact.
 
+However, once we take latency into account the `granite4:32b-a9b-h` model is not a viable option for running in real time on less capable hardware, and therefore the performance of the smaller models becomes more important.
+
 None of the other models pass 100% of the tests, however context does improve the peformance of the smaller models. Given changes to context I suspect that even the smallest model `granite3.1-moe:1b` could pass all currently defined tests.
 
 From initial testing, it appears that with a few refinements to prompt and context, you should be able to derive a satisfactory response from the small `granite3.1-moe:1b` model which is optimised for CPU. This would enable you to bundle the model with your game and remove any dependency on external inference.
@@ -72,7 +107,11 @@ From initial testing, it appears that with a few refinements to prompt and conte
 
 Measuring the latency of a model shows us the number of tokens it can process per second. While this is an important metric to understand it is increasingly important then running on resource constrained hardware. 
 
-For example, running `granite4:350m` on an Nvidia 4090GPU with 24GB of RAM, we see a prefil speed of 34647 tokens per second, given a prompt length of 639 tokens 
+For example, running `granite4:350m` on an `Nvidia 4090GPU with 24GB of RAM`, we see a prefil speed of `34647` tokens per second, given a prompt length of `639 tokens`, this means that the time take for us to receive the first token from the model after sending the message is `19ms`, assuming a warm model. If we look at the same model running on a `Macbook Pro M1 Pro with 32GB of RAM` we see a prefill speed of `4016` tokens per second and a time to first token of `163ms`. This is a significant increase in latency and highligts the efficiency of good hardware, however, this is still perfectly acceptable latecncy for a good user experience in the game. The user would not notice the difference between 19ms and 163ms.
+
+However, when we look at the larger `granite4:32b-a9b-h` model we see a prefill speed of `3063` tokens per second on the `Nvidia 4090GPU with 24GB of RAM` and a time to first token of `208ms`, while on the `Macbook Pro M1 Pro with 32GB of RAM` we see a prefill speed of `128` tokens per second and a time to first token of `4977ms`. This is a significant increase in latency and would likely lead to a poor user experience in the game. The user would most certainly notice the difference between 208ms and 4977ms and therefore it would not be acceptable to use this model on less capable hardware.
+
+In both of these instances we are disregarding the cold start time as this can be mitigated in the game by pre-loading the model into memory before the user starts interacting with it.
 
 ### Methodology
 In order to measure the latency of the models and the prompts we use a custom provider that enables us to collect specific metrics from Ollama:
@@ -102,6 +141,14 @@ node gen-table.js results.json
 
 ### Latency Test Results Nvidia 4090 GPU 24GB RAM
 
+**Note:** `Avg Prefill` scales with prompt size, the implication from the data is that a larger prompt leads to a higher prefill speed. While this is technically true it is due to the smaller prompt not fully utilising the GPU. This scale is not linear, if both prompts were large enought to fully utilise the GPU then the Avg Prefill would be the same for both prompts. The dramatic differencs is only due to the smaller prompt underutilising the GPU. To get the most realistic idea of the prefill speed the larger prompt should be used as this is more likely to fully utilise the GPU and provide a more accurate measurement of the prefill speed.
+
+When you send a prompt, the GPU processes all tokens in parallel as a single matrix multiply. The efficiency of a GPU's tensor cores improves significantly with larger batches because:
+
+1. GPU utilization — small batches underutilize the GPU's parallelism. With only 171 tokens (without-context), much of the GPU sits idle. With 639–750 tokens, you're filling more of the compute capacity.
+2. Memory bandwidth amortization — loading model weights from VRAM has a fixed overhead per layer. A larger token batch amortizes that cost across more work per weight load.
+3. Kernel efficiency — GPU compute kernels (cuBLAS/cuDNN) have optimal tile sizes. Larger sequences hit those sweet spots more effectively.
+
 | Model | Prompt | Avg Prompt Tokens | Avg Response Tokens | Warm TTFT p50 (ms) | Warm TTFT p95 (ms) | Cold TTFT p50 (ms) | Cold TTFT p95 (ms) | Avg Decode (tok/s) | Avg Prefill (tok/s) |
 |---|---|---|---|---|---|---|---|---|---|
 | granite3.1-moe:1b | with-context | 750 | 168 | 25 | 25 | 978 | 1324 | 855 | 30801 |
@@ -117,51 +164,20 @@ node gen-table.js results.json
 
 ### Latency Test Results Macbook Pro M1 Pro 32GB RAM (2021)
 
-| Model | Prompt | Avg Prompt Tokens | Avg Response Tokens | Avg Prefill Duration (ms) | Avg TTFT (ms) | Avg Decode (tok/s) | Avg Prefill (tok/s) | Avg Total Duration (ms) |
-|---|---|---|---|---|---|---|---|---|
-| granite3.1-moe:1b | with-context | 750 | 163 | 251 | 1514 | 107 | 2993 | 3035 |
-| granite3.1-moe:1b | without-context | 206 | 161 | 95 | 123 | 109 | 2975 | 1608 |
-| granite4:1b | with-context | 639 | 102 | 623 | 3267 | 47 | 1026 | 5459 |
-| granite4:1b | without-context | 171 | 103 | 46 | 94 | 48 | 3710 | 2279 |
-| granite4:1b-h | with-context | 639 | 104 | 930 | 2186 | 41 | 687 | 4767 |
-| granite4:1b-h | without-context | 171 | 119 | 252 | 300 | 41 | 677 | 3255 |
-| granite4:32b-a9b-h | with-context | 639 | 119 | 4996 | 20305 | 13 | 128 | 29553 |
-| granite4:32b-a9b-h | without-context | 171 | 208 | 1503 | 1552 | 13 | 113 | 17705 |
-| granite4:350m | with-context | 639 | 112 | 173 | 1210 | 150 | 3702 | 1974 |
-| granite4:350m | without-context | 171 | 56 | 15 | 62 | 154 | 11627 | 433 |
+| Model | Prompt | Avg Prompt Tokens | Avg Response Tokens | Warm TTFT p50 (ms) | Warm TTFT p95 (ms) | Cold TTFT p50 (ms) | Cold TTFT p95 (ms) | Avg Decode (tok/s) | Avg Prefill (tok/s) |
+|---|---|---|---|---|---|---|---|---|---|
+| granite3.1-moe:1b | with-context | 750 | 159 | 263 | 267 | 1484 | 1505 | 108 | 2886 |
+| granite3.1-moe:1b | without-context | 206 | 196 | 108 | 116 | 820 | 826 | 107 | 1919 |
+| granite4:1b | with-context | 639 | 109 | 621 | 648 | 2936 | 3413 | 47 | 1020 |
+| granite4:1b | without-context | 171 | 104 | 206 | 210 | 1261 | 1277 | 48 | 841 |
+| granite4:1b-h | with-context | 639 | 128 | 924 | 951 | 2197 | 2244 | 41 | 691 |
+| granite4:1b-h | without-context | 171 | 104 | 275 | 279 | 796 | 809 | 41 | 621 |
+| granite4:32b-a9b-h | with-context | 639 | 112 | 4977 | 5065 | 18978 | 19973 | 13 | 128 |
+| granite4:32b-a9b-h | without-context | 171 | 215 | 1527 | 1544 | 3491 | 3507 | 13 | 112 |
+| granite4:350m | with-context | 639 | 96 | 163 | 169 | 1178 | 1202 | 148 | 4016 |
+| granite4:350m | without-context | 171 | 43 | 52 | 57 | 564 | 586 | 155 | 3229 |
 
-## Installation
 
-Install Promptfoo globally using npm:
-```
-npm install -g promptfoo
-```
-
-Ensure the Ollama HOST is set correctly in your environment variables:
-
-```
-export OLLAMA_HOST=http://localhost:11434
-```
-
-Install the models locally:
-
-```
-ollama pull granite3.1-moe:1b
-ollama pull granite4:350m
-ollama pull granite4:1b
-ollama pull granite4:1b-h
-ollama pull granite4:32b-a9b-h
-```
-
-## Running the tests
-To run the tests locally with Ollama, use the following command:
-
-```
-promptfoo eval
-```
-
-Note the granite4:32b-a9b-h model is a very large model that requires 24GB of GPU memory to run.
-This model is used as a reference for the best possible performance, but it may not be feasible to run on all hardware configurations.
 
 
 ## Models tested
