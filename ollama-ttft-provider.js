@@ -114,6 +114,31 @@ function streamOllamaChat({ baseUrl, model, messages, options = {} }) {
 }
 
 /**
+ * Unload a model from VRAM by sending a keep_alive: 0 request.
+ * This ensures the next callApi measures a true cold-start TTFT.
+ */
+function unloadModel({ baseUrl, model }) {
+  return new Promise((resolve) => {
+    const url = new URL('/api/chat', baseUrl);
+    const body = JSON.stringify({ model, messages: [], keep_alive: 0 });
+    const lib = url.protocol === 'https:' ? require('https') : http;
+    const req = lib.request(
+      {
+        hostname: url.hostname,
+        port: url.port || (url.protocol === 'https:' ? 443 : 80),
+        path: url.pathname,
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
+      },
+      (res) => { res.resume(); res.on('end', resolve); }
+    );
+    req.on('error', resolve); // ignore errors — best effort
+    req.write(body);
+    req.end();
+  });
+}
+
+/**
  * Convert a promptfoo prompt (string or OpenAI message array) into
  * the messages array ollama expects.
  */
@@ -162,11 +187,16 @@ class OllamaTTFTProvider {
       system,
       temperature,
       num_predict,
+      coldStart = false,
       ...extraOptions
     } = this.config;
 
     if (!model) {
       throw new Error('ollama-ttft-provider: config.model is required');
+    }
+
+    if (coldStart) {
+      await unloadModel({ baseUrl, model });
     }
 
     const messages = toMessages(prompt, this.config);
@@ -209,8 +239,6 @@ class OllamaTTFTProvider {
       promptEvalCount && promptEvalDurationMs
         ? Math.round((promptEvalCount / promptEvalDurationMs) * 1000)
         : null;
-
-    console.error('DEBUG', { ttftMs, promptEvalDurationMs, evalCount });
 
     return {
       // Required by promptfoo

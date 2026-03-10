@@ -24,26 +24,31 @@ providers:
     label: granite3.1-moe:1b
     config:
       model: granite3.1-moe:1b
+      coldStart: true
  
   - id: file://ollama-ttft-provider.js
     label: granite4:350m
     config:
       model: granite4:350m
+      coldStart: true
  
   - id: file://ollama-ttft-provider.js
     label: granite4:1b
     config:
       model: granite4:1b
+      coldStart: true
  
   - id: file://ollama-ttft-provider.js
     label: granite4:1b-h
     config:
       model: granite4:1b-h
+      coldStart: true
  
   - id: file://ollama-ttft-provider.js
     label: granite4:32b-a9b-h
     config:
       model: granite4:32b-a9b-h
+      coldStart: true
 
 tests:
   - description: Child asks what a chicane is

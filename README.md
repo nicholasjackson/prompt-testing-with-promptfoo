@@ -70,12 +70,22 @@ From initial testing, it appears that with a few refinements to prompt and conte
 
 ## Latency Testing
 
-Measuring the latency of a model shows us the number of tokens it can process per second. While this is an important metric to understand it is increasingly importan then running on resource constrained hardware. 
+Measuring the latency of a model shows us the number of tokens it can process per second. While this is an important metric to understand it is increasingly important then running on resource constrained hardware. 
 
-For example, running `granite4:350m` on an Nvidia 4090GPU with 24GB of RAM, we see a prefil speed of 34647 tokens per second, given a prompt length of 
+For example, running `granite4:350m` on an Nvidia 4090GPU with 24GB of RAM, we see a prefil speed of 34647 tokens per second, given a prompt length of 639 tokens 
 
+### Methodology
+In order to measure the latency of the models and the prompts we use a custom provider that enables us to collect specific metrics from Ollama:
+* Time to first token (TTFT), this is the time it takes for the client to receive the first token from the model after sending the request.
+* Prompt Evaluation Time, this is the time it takes for the model to process the prompt before it starts generating the response.
+* Evaluation Time, this is the time it takes for the model to generate the response after processing the prompt.
+* Total Duration, this is the total time it takes for the model to load the model, process the prompt and generate the response.
 
-To effectively measure the latency of the prompts and models it is important to set the `max-concurrency` to 1 to get a clearer picture of single-request latency.
+It is important to note that model load time is effectively a one time cost as it covers the cost of loading the model into memory, once the model is loaded subequent requests will not incur this cost. For this reson the custom provider sends a `keep_alive: 0` request before every message, this ensures that the model is unloaded after every request. 
+
+To effectively measure the latency of the prompts and models it is important to set the `max-concurrency` to 1 to get a clearer picture of single-request latency. Promptfoo by default will attempt to run multiple requests in parallel and then takes an average of the results. The intention is to speed up the testing process based on the assumption that each request will hit a different inference engine. When testing locally with Ollama this is not the case, all requests will hit the same inference engine so running parallel requests competes for the same resources and reduces the prcision of latency measrements for each test. Setting `max-concurrency` to 1 ensures that each request is processed sequentially and provides a more accurate measurement of latency for each prompt and model combination.
+
+### Running the tests
 
 First run the tests with the following command to generate the results file:
 
@@ -92,19 +102,33 @@ node gen-table.js results.json
 
 ### Latency Test Results Nvidia 4090 GPU 24GB RAM
 
-| Model | Prompt | Avg TTFT (ms) | Avg Decode (tok/s) | Avg Prefill (tok/s) | Avg Total Duration (ms) |
-|---|---|---|---|---|---|
-| granite3.1-moe:1b | with-context | 844 | 786 | 26990 | 1106 |
-| granite3.1-moe:1b | without-context | 30 | 864 | 24316 | 368 |
-| granite4:1b | with-context | 1433 | 237 | 19970 | 1956 |
-| granite4:1b | without-context | 51 | 235 | 12775 | 636 |
-| granite4:1b-h | with-context | 1395 | 130 | 14685 | 2368 |
-| granite4:1b-h | without-context | 54 | 127 | 10119 | 950 |
-| granite4:32b-a9b-h | with-context | 5326 | 74 | 3089 | 6716 |
-| granite4:32b-a9b-h | without-context | 112 | 72 | 2362 | 2460 |
-| granite4:350m | with-context | 1556 | 802 | 34647 | 1700 |
-| granite4:350m | without-context | 46 | 828 | 19019 | 154 |
+| Model | Prompt | Avg Prompt Tokens | Avg Response Tokens | Warm TTFT p50 (ms) | Warm TTFT p95 (ms) | Cold TTFT p50 (ms) | Cold TTFT p95 (ms) | Avg Decode (tok/s) | Avg Prefill (tok/s) |
+|---|---|---|---|---|---|---|---|---|---|
+| granite3.1-moe:1b | with-context | 750 | 168 | 25 | 25 | 978 | 1324 | 855 | 30801 |
+| granite3.1-moe:1b | without-context | 206 | 181 | 12 | 12 | 1158 | 1357 | 828 | 17569 |
+| granite4:1b | with-context | 639 | 98 | 33 | 34 | 1489 | 1561 | 233 | 19356 |
+| granite4:1b | without-context | 171 | 95 | 15 | 15 | 1710 | 1730 | 230 | 11782 |
+| granite4:1b-h | with-context | 639 | 108 | 44 | 45 | 1752 | 1800 | 129 | 14559 |
+| granite4:1b-h | without-context | 171 | 103 | 17 | 18 | 1378 | 1394 | 130 | 9824 |
+| granite4:32b-a9b-h | with-context | 639 | 110 | 208 | 211 | 5282 | 5532 | 72 | 3063 |
+| granite4:32b-a9b-h | without-context | 171 | 223 | 72 | 73 | 3634 | 3673 | 71 | 2370 |
+| granite4:350m | with-context | 639 | 82 | 19 | 20 | 1551 | 1666 | 764 | 33637 |
+| granite4:350m | without-context | 171 | 63 | 10 | 10 | 1142 | 1257 | 783 | 17535 |
 
+### Latency Test Results Macbook Pro M1 Pro 32GB RAM (2021)
+
+| Model | Prompt | Avg Prompt Tokens | Avg Response Tokens | Avg Prefill Duration (ms) | Avg TTFT (ms) | Avg Decode (tok/s) | Avg Prefill (tok/s) | Avg Total Duration (ms) |
+|---|---|---|---|---|---|---|---|---|
+| granite3.1-moe:1b | with-context | 750 | 163 | 251 | 1514 | 107 | 2993 | 3035 |
+| granite3.1-moe:1b | without-context | 206 | 161 | 95 | 123 | 109 | 2975 | 1608 |
+| granite4:1b | with-context | 639 | 102 | 623 | 3267 | 47 | 1026 | 5459 |
+| granite4:1b | without-context | 171 | 103 | 46 | 94 | 48 | 3710 | 2279 |
+| granite4:1b-h | with-context | 639 | 104 | 930 | 2186 | 41 | 687 | 4767 |
+| granite4:1b-h | without-context | 171 | 119 | 252 | 300 | 41 | 677 | 3255 |
+| granite4:32b-a9b-h | with-context | 639 | 119 | 4996 | 20305 | 13 | 128 | 29553 |
+| granite4:32b-a9b-h | without-context | 171 | 208 | 1503 | 1552 | 13 | 113 | 17705 |
+| granite4:350m | with-context | 639 | 112 | 173 | 1210 | 150 | 3702 | 1974 |
+| granite4:350m | without-context | 171 | 56 | 15 | 62 | 154 | 11627 | 433 |
 
 ## Installation
 
