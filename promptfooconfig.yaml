@@ -14,11 +14,36 @@ prompts:
 providers:
   # Requires OLLAMA_BASE_URL=http://<host>:<port> to be set in the environment
   # if not set default http://localhost:11434 is used
-  - ollama:chat:granite3.1-moe:1b
-  - ollama:chat:granite4:350m
-  - ollama:chat:granite4:1b
-  - ollama:chat:granite4:1b-h
-  - ollama:chat:granite4:32b-a9b-h
+  #- ollama:chat:granite3.1-moe:1b
+  #- ollama:chat:granite4:350m
+  #- ollama:chat:granite4:1b
+  #- ollama:chat:granite4:1b-h
+  #- ollama:chat:granite4:32b-a9b-h
+  # Custom provider to enable time to first token measurement
+  - id: file://ollama-ttft-provider.js
+    label: granite3.1-moe:1b
+    config:
+      model: granite3.1-moe:1b
+ 
+  - id: file://ollama-ttft-provider.js
+    label: granite4:350m
+    config:
+      model: granite4:350m
+ 
+  - id: file://ollama-ttft-provider.js
+    label: granite4:1b
+    config:
+      model: granite4:1b
+ 
+  - id: file://ollama-ttft-provider.js
+    label: granite4:1b-h
+    config:
+      model: granite4:1b-h
+ 
+  - id: file://ollama-ttft-provider.js
+    label: granite4:32b-a9b-h
+    config:
+      model: granite4:32b-a9b-h
 
 tests:
   - description: Child asks what a chicane is

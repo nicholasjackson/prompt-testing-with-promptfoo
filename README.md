@@ -68,6 +68,38 @@ None of the other models pass 100% of the tests, however context does improve th
 
 From initial testing, it appears that with a few refinements to prompt and context, you should be able to derive a satisfactory response from the small `granite3.1-moe:1b` model which is optimised for CPU. This would enable you to bundle the model with your game and remove any dependency on external inference.
 
+## Latency Testing
+
+To measure the latency of the prompts and models it is important to set the `max-concurrency` to 1 to get a clearer picture of single-request latency.
+
+First run the tests with the following command to generate the results file:
+
+```bash
+promptfoo eval --output results.json --no-cache --max-concurrency 1
+```
+
+The results file contains detailed statistics about the performance of each model and prompt combination.
+To extract the latency information into a table use the following command:
+
+```bash
+node gen-table.js results.json
+```
+
+### Latency Test Results Nvidia 4090 GPU 24GB RAM
+
+| Model | Prompt | Avg TTFT (ms) | Avg Decode (tok/s) | Avg Prefill (tok/s) | Avg Total Duration (ms) |
+|---|---|---|---|---|---|
+| granite3.1-moe:1b | with-context | 844 | 786 | 26990 | 1106 |
+| granite3.1-moe:1b | without-context | 30 | 864 | 24316 | 368 |
+| granite4:1b | with-context | 1433 | 237 | 19970 | 1956 |
+| granite4:1b | without-context | 51 | 235 | 12775 | 636 |
+| granite4:1b-h | with-context | 1395 | 130 | 14685 | 2368 |
+| granite4:1b-h | without-context | 54 | 127 | 10119 | 950 |
+| granite4:32b-a9b-h | with-context | 5326 | 74 | 3089 | 6716 |
+| granite4:32b-a9b-h | without-context | 112 | 72 | 2362 | 2460 |
+| granite4:350m | with-context | 1556 | 802 | 34647 | 1700 |
+| granite4:350m | without-context | 46 | 828 | 19019 | 154 |
+
 
 ## Installation
 
