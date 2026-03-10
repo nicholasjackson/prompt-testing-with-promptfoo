@@ -70,7 +70,12 @@ From initial testing, it appears that with a few refinements to prompt and conte
 
 ## Latency Testing
 
-To measure the latency of the prompts and models it is important to set the `max-concurrency` to 1 to get a clearer picture of single-request latency.
+Measuring the latency of a model shows us the number of tokens it can process per second. While this is an important metric to understand it is increasingly importan then running on resource constrained hardware. 
+
+For example, running `granite4:350m` on an Nvidia 4090GPU with 24GB of RAM, we see a prefil speed of 34647 tokens per second, given a prompt length of 
+
+
+To effectively measure the latency of the prompts and models it is important to set the `max-concurrency` to 1 to get a clearer picture of single-request latency.
 
 First run the tests with the following command to generate the results file:
 
